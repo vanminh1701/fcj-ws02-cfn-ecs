@@ -1,0 +1,234 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EC2 ECS cluster that starts out empty, with no EC2 instances yet. An ECS capacity provider automatically launches more EC2 instances as required on the fly when you request ECS to launch services or standalone tasks.
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t3.medium
+    Description: Class of EC2 instance
+  DesiredCapacity:
+    Type: Number
+    Default: '1'
+    Description: Number of EC2 instances to launch in your ECS cluster.
+  MaxSize:
+    Type: Number
+    Default: '2'
+    Description: Maximum number of EC2 instances that can be launched in your ECS cluster.
+  EC2AMI:
+    Description: The Amazon Machine Image ID used for the cluster
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2023/recommended/image_id
+  VpcStackName:
+    Description: VPC stack Name
+    Type: String
+    Default: ws2-vpc
+Resources:
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: workshop-02
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      ServiceConnectDefaults:
+        Namespace: workshop-02
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn:
+      - Cluster
+      - EC2Role
+    Properties:
+      VPCZoneIdentifier:
+        - !Select
+          - 0
+          - !Split
+            - ','
+            - !ImportValue
+              Fn::Sub: ${VpcStackName}-PrivateSubnets
+        - !Select
+          - 1
+          - !Split
+            - ','
+            - !ImportValue
+              Fn::Sub: ${VpcStackName}-PrivateSubnets
+      LaunchTemplate:
+        LaunchTemplateId: !Ref ContainerInstances
+        Version: !GetAtt ContainerInstances.LatestVersionNumber
+      MinSize: 0
+      MaxSize: !Ref MaxSize
+      DesiredCapacity: !Ref DesiredCapacity
+  ContainerInstances:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref EC2AMI
+        InstanceType: !Ref InstanceType
+        IamInstanceProfile:
+          Name: !Ref EC2InstanceProfile
+        SecurityGroupIds:
+          - !GetAtt ContainerInstanceSG.GroupId
+        KeyName: !Ref KeyPair
+        UserData: !Base64
+          Fn::Sub: |
+            #!/bin/bash
+            cat <<'EOF' >> /etc/ecs/ecs.config
+            ECS_CLUSTER=${Cluster}
+            EOF
+        MetadataOptions:
+          HttpEndpoint: enabled
+          HttpTokens: required
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref EC2Role
+  KeyPair:
+    Type: AWS::EC2::KeyPair
+    Properties:
+      KeyFormat: pem
+      KeyType: rsa
+      KeyName: lol
+      PublicKeyMaterial: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDm5eMeUdb1/Dc12uI9IlYHqGtA3EKFHfo6D/1Z3r2ZPoOq+rldWNeMF6ftLCzCbXtHuJiofGy1T1XsSKqjiyyPgIinX78pO9wAmljbtVysyFQskHbe4wTuehvBLme8s4CsIp/jebItOeyYUkltvl31Q4fbHG4AvnUXZRHdC8mJg9rttYCayN8tVQ+BTKgSZRvAsel6E4s459CwmTjoukXvqbnG5dbJOAUdaMluJtO+wNH1wcBoJ6qwEu+jkfOcyNf0QL+MpP+gTssd8AUobfR530kTbrH+uVbkfhVBfpoWOgf9fFprODYn+XP0lcUVzXFN111K+Ieuk5sRFpW8zAWRVEMzjOHPHomZ+1I94bLbofGPFqpqZU5eyZ4T/UeLBSVbLJELqSKSdESXJmSGu6+HbhrBcG/krB6+PwGL4qApyALEv2DEC0BzMdjTK3EYgATwwx2LSkS5H5x+134CngC00HO7OUU9pgyVh3rL4OdTbA5f8ECJhFkZupSruPcnZLE= minh@MacBook-Air-cua-MT.local
+  CapacityProvider:
+    Type: AWS::ECS::CapacityProvider
+    Properties:
+      AutoScalingGroupProvider:
+        AutoScalingGroupArn: !Ref AutoScalingGroup
+        ManagedDraining: ENABLED
+        ManagedScaling:
+          Status: ENABLED
+      Name: CapacityProvider-ECS-WS002
+  CapacityProviderAssociation:
+    Type: AWS::ECS::ClusterCapacityProviderAssociations
+    Properties:
+      CapacityProviders:
+        - !Ref CapacityProvider
+      Cluster: !Ref Cluster
+      DefaultCapacityProviderStrategy:
+        - Base: 0
+          CapacityProvider: !Ref CapacityProvider
+          Weight: 1
+  ContainerInstanceSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Access to the EC2 hosts that run containers
+      VpcId: !ImportValue
+        Fn::Sub: ${VpcStackName}-VpcId
+      SecurityGroupIngress:
+        - CidrIp: !ImportValue
+            Fn::Sub: ${VpcStackName}-CIDR
+          IpProtocol: -1
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: ECSExecPermission
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: Monitor
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                Resource: '*'
+  TaskDeploymentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codedeploy.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodeDeployRoleForECS
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: ECSExecPermission
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: ECSExec
+                Effect: Allow
+                Action:
+                  - ssmmessages:CreateControlChannel
+                  - ssmmessages:CreateDataChannel
+                  - ssmmessages:OpenControlChannel
+                  - ssmmessages:OpenDataChannel
+                Resource: '*'
+              - Sid: Monitor
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                Resource: '*'
+Outputs:
+  ClusterName:
+    Description: The ECS cluster into which to launch resources
+    Value: !Ref Cluster
+    Export:
+      Name: !Sub ${AWS::StackName}-ClusterName
+  TaskRole:
+    Description: The role used to start up a task
+    Value: !Ref TaskRole
+    Export:
+      Name: !Sub ${AWS::StackName}-TaskRole
+  TaskExecutionRoleArn:
+    Description: The role used to start up a task
+    Value: !GetAtt TaskExecutionRole.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-TaskExecutionRole
+  TaskDeploymentRole:
+    Description: The role used to deploy a task
+    Value: !Ref TaskDeploymentRole
+    Export:
+      Name: !Sub ${AWS::StackName}-TaskDeploymentRole
+  CapacityProvider:
+    Description: The cluster capacity provider that the service should use to request capacity when it wants to start up a task
+    Value: !Ref CapacityProvider
+    Export:
+      Name: !Sub ${AWS::StackName}-CapacityProvider

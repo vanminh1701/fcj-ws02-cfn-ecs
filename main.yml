@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation for deploying project with ECS service
+Parameters:
+  BucketName:
+    Type: String
+    Description: S3 address of stack resources and files
+    Default: ws2-s3
+  VpcStackName:
+    Type: String
+    Description: VPC stack name
+    Default: ws2-vpc
+Resources:
+  ecsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/ecs.yml
+      Parameters:
+        VpcStackName: !Ref VpcStackName
+  ecsALBStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/alb.yml
+      Parameters:
+        VpcStackName: !Ref VpcStackName
+  taskWebStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - ecsStack
+      - ecsALBStack
+    Properties:
+      TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/task-web.yml
+      Parameters:
+        VpcStackName: !Ref VpcStackName
+        ClusterName: !GetAtt ecsStack.Outputs.ClusterName
+        CapacityProvider: !GetAtt ecsStack.Outputs.CapacityProvider
+        ServiceName: web
+        TaskExecutionRoleArn: !GetAtt ecsStack.Outputs.TaskExecutionRoleArn
+        TaskRole: !GetAtt ecsStack.Outputs.TaskRole
+        ImageUrl: nginx:latest
+        ELBTargetGroupArn: !GetAtt ecsALBStack.Outputs.WebTargetGroup1
