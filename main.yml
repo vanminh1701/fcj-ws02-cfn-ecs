@@ -4,7 +4,7 @@ Parameters:
   BucketName:
     Type: String
     Description: S3 address of stack resources and files
-    Default: ws2-s3
+    Default: ws2-templates
   VpcStackName:
     Type: String
     Description: VPC stack name
@@ -57,3 +57,7 @@ Resources:
         TaskRole: !GetAtt ecsStack.Outputs.TaskRole
         ImageUrl: dockerbogo/docker-nginx-hello-world
         ELBTargetGroupArn: !GetAtt ecsALBStack.Outputs.WebTargetGroup2
+
+# TODO:
+# tạo private link cho cloudwatch
+# tạo thêm change set để cho cloudformation

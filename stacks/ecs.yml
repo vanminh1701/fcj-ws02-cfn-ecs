@@ -92,7 +92,7 @@ Resources:
     Properties:
       KeyFormat: pem
       KeyType: rsa
-      KeyName: lol
+      KeyName: ws2-keypair
       PublicKeyMaterial: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDm5eMeUdb1/Dc12uI9IlYHqGtA3EKFHfo6D/1Z3r2ZPoOq+rldWNeMF6ftLCzCbXtHuJiofGy1T1XsSKqjiyyPgIinX78pO9wAmljbtVysyFQskHbe4wTuehvBLme8s4CsIp/jebItOeyYUkltvl31Q4fbHG4AvnUXZRHdC8mJg9rttYCayN8tVQ+BTKgSZRvAsel6E4s459CwmTjoukXvqbnG5dbJOAUdaMluJtO+wNH1wcBoJ6qwEu+jkfOcyNf0QL+MpP+gTssd8AUobfR530kTbrH+uVbkfhVBfpoWOgf9fFprODYn+XP0lcUVzXFN111K+Ieuk5sRFpW8zAWRVEMzjOHPHomZ+1I94bLbofGPFqpqZU5eyZ4T/UeLBSVbLJELqSKSdESXJmSGu6+HbhrBcG/krB6+PwGL4qApyALEv2DEC0BzMdjTK3EYgATwwx2LSkS5H5x+134CngC00HO7OUU9pgyVh3rL4OdTbA5f8ECJhFkZupSruPcnZLE= minh@MacBook-Air-cua-MT.local
   CapacityProvider:
     Type: AWS::ECS::CapacityProvider
@@ -123,7 +123,7 @@ Resources:
       SecurityGroupIngress:
         - CidrIp: 
             Fn::ImportValue:
-                Fn::Sub: ${VpcStackName}-CIDR
+              Fn::Sub: ${VpcStackName}-CIDR
           IpProtocol: -1
   EC2Role:
     Type: AWS::IAM::Role

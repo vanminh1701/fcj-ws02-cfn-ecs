@@ -97,8 +97,20 @@ Resources:
           TargetGroupArn: !Ref ELBTargetGroupArn
       ServiceConnectConfiguration:
         Enabled: True
-        # LogConfiguration:
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            mode: non-blocking
+            max-buffer-size: 25m
+            awslogs-create-group: True
+            awslogs-group: !Sub /ecs/${ServiceName}
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: ecs
         Namespace: !Ref ClusterName
+        Services:
+          - ClientAliases:
+              - Port: 80
+            PortName: api-svc
       
   ServiceSecurityGroup:
     Type: AWS::EC2::SecurityGroup

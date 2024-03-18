@@ -1,7 +1,5 @@
 #!/bin/bash
-
 set -x
-
 
 # Create CF stack
 aws cloudformation create-stack \

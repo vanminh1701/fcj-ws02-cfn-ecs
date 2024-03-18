@@ -2,7 +2,7 @@
 
 set -x
 STACK_NAME=ws2-ecs
-S3_STACK_BUCKET=ws2-s3
+S3_STACK_BUCKET=ws2-templates
 
 Sync template to s3
 ./sync-s3.sh $S3_STACK_BUCKET

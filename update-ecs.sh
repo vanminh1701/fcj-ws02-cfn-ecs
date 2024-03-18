@@ -2,7 +2,7 @@
 
 set -ex
 STACK_NAME=ws2-ecs
-S3_STACK_BUCKET=ws2-s3
+S3_STACK_BUCKET=ws2-templates
 ./sync-s3.sh $S3_STACK_BUCKET
 
 TEMPLATE_URL=https://$S3_STACK_BUCKET.s3.amazonaws.com/main.yml
