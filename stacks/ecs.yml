@@ -21,16 +21,20 @@ Parameters:
     Description: VPC stack Name
     Type: String
     Default: ws2-vpc
+  ClusterName:
+    Type: String
+    Description: ECS Cluster name
+    Default: workshop-02
 Resources:
   Cluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: workshop-02
+      ClusterName: !Ref ClusterName
       ClusterSettings:
         - Name: containerInsights
           Value: enabled
       ServiceConnectDefaults:
-        Namespace: workshop-02
+        Namespace: !Ref ClusterName
   AutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     DependsOn:
@@ -42,14 +46,14 @@ Resources:
           - 0
           - !Split
             - ','
-            - !ImportValue
-              Fn::Sub: ${VpcStackName}-PrivateSubnets
+            - Fn::ImportValue:
+                Fn::Sub: ${VpcStackName}-PrivateSubnets
         - !Select
           - 1
           - !Split
             - ','
-            - !ImportValue
-              Fn::Sub: ${VpcStackName}-PrivateSubnets
+            - Fn::ImportValue:
+                Fn::Sub: ${VpcStackName}-PrivateSubnets
       LaunchTemplate:
         LaunchTemplateId: !Ref ContainerInstances
         Version: !GetAtt ContainerInstances.LatestVersionNumber
@@ -67,12 +71,13 @@ Resources:
         SecurityGroupIds:
           - !GetAtt ContainerInstanceSG.GroupId
         KeyName: !Ref KeyPair
-        UserData: !Base64
-          Fn::Sub: |
-            #!/bin/bash
-            cat <<'EOF' >> /etc/ecs/ecs.config
-            ECS_CLUSTER=${Cluster}
-            EOF
+        UserData: 
+          Fn::Base64:
+            Fn::Sub: |
+              #!/bin/bash
+              cat <<'EOF' >> /etc/ecs/ecs.config
+              ECS_CLUSTER=${Cluster}
+              EOF
         MetadataOptions:
           HttpEndpoint: enabled
           HttpTokens: required
@@ -112,11 +117,13 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Access to the EC2 hosts that run containers
-      VpcId: !ImportValue
-        Fn::Sub: ${VpcStackName}-VpcId
+      VpcId: 
+        Fn::ImportValue:
+          Fn::Sub: ${VpcStackName}-VpcId
       SecurityGroupIngress:
-        - CidrIp: !ImportValue
-            Fn::Sub: ${VpcStackName}-CIDR
+        - CidrIp: 
+            Fn::ImportValue:
+                Fn::Sub: ${VpcStackName}-CIDR
           IpProtocol: -1
   EC2Role:
     Type: AWS::IAM::Role

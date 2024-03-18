@@ -90,10 +90,10 @@ Resources:
           SecurityGroups:
             - !Ref ServiceSecurityGroup
           Subnets:
-            - !ImportValue
-              Fn::Sub: ${VpcStackName}-PrivateSubnet1
-            - !ImportValue
-              Fn::Sub: ${VpcStackName}-PrivateSubnet2
+            - Fn::ImportValue:
+                Fn::Sub: ${VpcStackName}-PrivateSubnet1
+            - Fn::ImportValue:
+                Fn::Sub: ${VpcStackName}-PrivateSubnet2
       DeploymentConfiguration:
         MaximumPercent: 200
         MinimumHealthyPercent: 75
@@ -105,15 +105,34 @@ Resources:
         - ContainerName: !Ref ServiceName
           ContainerPort: !Ref ContainerPort
           TargetGroupArn: !Ref ELBTargetGroupArn
+      ServiceConnectConfiguration:
+        Enabled: True
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            mode: non-blocking
+            max-buffer-size: 25m
+            awslogs-create-group: True
+            awslogs-group: !Sub /ecs/${ServiceName}
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: ecs
+        Namespace: !Ref ClusterName
+        Services:
+          - clientAliases:
+              - DnsName: web
+                Port: 80
+            PortName: nginx-svc
   ServiceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for service
-      VpcId: !ImportValue
-        Fn::Sub: ${VpcStackName}-VpcId
+      VpcId: 
+        Fn::ImportValue:
+          Fn::Sub: ${VpcStackName}-VpcId
       SecurityGroupIngress:
-        - CidrIp: !ImportValue
-            Fn::Sub: ${VpcStackName}-CIDR
+        - CidrIp: 
+            Fn::ImportValue:
+                Fn::Sub: ${VpcStackName}-CIDR
           IpProtocol: -1
   LogGroup:
     Type: AWS::Logs::LogGroup

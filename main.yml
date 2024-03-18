@@ -9,6 +9,10 @@ Parameters:
     Type: String
     Description: VPC stack name
     Default: ws2-vpc
+  GitHubUrl:
+    Type: String
+    Description: CloudFormation custom templates Github repo 
+    Default: https://github.com/vanminh1701/fcj-ws02-cfn-ecs/blob/master/stacks/ecs.yml
 Resources:
   ecsStack:
     Type: AWS::CloudFormation::Stack
@@ -38,3 +42,18 @@ Resources:
         TaskRole: !GetAtt ecsStack.Outputs.TaskRole
         ImageUrl: nginx:latest
         ELBTargetGroupArn: !GetAtt ecsALBStack.Outputs.WebTargetGroup1
+  taskAPIStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - ecsStack
+      - ecsALBStack
+    Properties:
+      TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/task-api.yml
+      Parameters:
+        VpcStackName: !Ref VpcStackName
+        ClusterName: !GetAtt ecsStack.Outputs.ClusterName
+        ServiceName: api
+        TaskExecutionRoleArn: !GetAtt ecsStack.Outputs.TaskExecutionRoleArn
+        TaskRole: !GetAtt ecsStack.Outputs.TaskRole
+        ImageUrl: dockerbogo/docker-nginx-hello-world
+        ELBTargetGroupArn: !GetAtt ecsALBStack.Outputs.WebTargetGroup2

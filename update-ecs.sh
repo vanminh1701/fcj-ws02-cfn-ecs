@@ -9,4 +9,4 @@ TEMPLATE_URL=https://$S3_STACK_BUCKET.s3.amazonaws.com/main.yml
 
 aws cloudformation update-stack --stack-name $STACK_NAME \
   --template-url $TEMPLATE_URL \
-  --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND
+  --capabilities CAPABILITY_IAM
