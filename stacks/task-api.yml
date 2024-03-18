@@ -1,0 +1,116 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Deploy Application onto Fargate
+Parameters:
+  ELBTargetGroupArn:
+    Type: String
+    Description: ALB Stack Name from ECS
+  ClusterName:
+    Type: String
+    Description: ECS cluster
+  TaskExecutionRoleArn:
+    Type: String
+    Description: Task Role
+  TaskRole:
+    Type: String
+    Description: Task Role
+  VpcStackName:
+    Type: String
+    Description: The name of VPC stack
+  ServiceName:
+    Type: String
+    Description: A name for the service
+  ImageUrl:
+    Type: String
+    Default: public.ecr.aws/docker/library/nginx:latest
+    Description: The url of a docker image that contains the application process that will handle the traffic for this service
+  ContainerCpu:
+    Type: Number
+    Default: 256
+    Description: How much CPU to give the container. 1024 is 1 CPU
+  ContainerMemory:
+    Type: Number
+    Default: 512
+    Description: How much memory in megabytes to give the container
+  ContainerPort:
+    Type: Number
+    Default: 80
+    Description: What port that the application expects traffic on
+  DesiredCount:
+    Type: Number
+    Default: 1
+    Description: How many copies of the service task to run
+
+Resources:
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref ServiceName
+      Cpu: !Ref ContainerCpu
+      Memory: !Ref ContainerMemory
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !Ref TaskExecutionRoleArn
+      TaskRoleArn: !Ref TaskRole
+      ContainerDefinitions:
+        - Name: !Ref ServiceName
+          Cpu: !Ref ContainerCpu
+          Memory: !Ref ContainerMemory
+          Image: !Ref ImageUrl
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+              HostPort: !Ref ContainerPort
+              AppProtocol: http
+              Name: api-svc
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              mode: non-blocking
+              max-buffer-size: 25m
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: !Ref ServiceName
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Ref ServiceName
+      Cluster: !Ref ClusterName
+      EnableExecuteCommand: true
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !Ref ServiceSecurityGroup
+          Subnets:
+            - Fn::ImportValue:
+                Fn::Sub: ${VpcStackName}-PrivateSubnet1
+            - Fn::ImportValue:
+                Fn::Sub: ${VpcStackName}-PrivateSubnet2
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 75
+      DeploymentController:
+        Type: ECS
+      DesiredCount: !Ref DesiredCount
+      TaskDefinition: !Ref TaskDefinition
+      LoadBalancers:
+        - ContainerName: !Ref ServiceName
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref ELBTargetGroupArn
+      ServiceConnectConfiguration:
+        Enabled: True
+        # LogConfiguration:
+        Namespace: !Ref ClusterName
+      
+  ServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for service
+      VpcId: 
+        Fn::ImportValue:
+          Fn::Sub: ${VpcStackName}-VpcId
+      SecurityGroupIngress:
+        - CidrIp: 
+            Fn::ImportValue:
+              Fn::Sub: ${VpcStackName}-CIDR
+          IpProtocol: -1
+  LogGroup:
+    Type: AWS::Logs::LogGroup
