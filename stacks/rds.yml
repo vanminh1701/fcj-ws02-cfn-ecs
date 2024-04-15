@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECR repository
+Parameters:
+  DBInstanceClass:
+    Type: String
+    Default: db.t3.micro
+  DBName: 
+    Type: String
+    Default: ws02instance
+  VpcStackName: 
+    Type: String
+    Default: VpcStackName
+
+Resources:
+  DBParameterGroup:
+    Type: 'AWS::RDS::DBParameterGroup'
+    Properties:
+      Description: CloudFormation Sample Postgres Parameter Group for replication
+      Family: postgres16
+      Parameters:
+        rds.logical_replication: 1
+  SubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: ws02 private subnets 
+      DBSubnetGroupName: ws02
+      # Get from VPC
+      SubnetIds: 
+        - !Select
+          - 0
+          - !Split
+            - ','
+            - Fn::ImportValue:
+                Fn::Sub: ${VpcStackName}-PrivateSubnets
+        - !Select
+          - 1
+          - !Split
+            - ','
+            - Fn::ImportValue:
+                Fn::Sub: ${VpcStackName}-PrivateSubnets
+  DB:
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      DBInstanceIdentifier: !Ref DBName
+      DBName: ws02
+      DBInstanceClass: !Ref DBInstanceClass
+      Engine: postgres
+      EngineVersion: "16.2"
+      MasterUsername: postgres
+      MasterUserPassword: '{{resolve:ssm-secure:ws02-db-pw:1}}'
+      DBParameterGroupName: !Ref DBParameterGroup
+      StorageType: gp3
+      AllocatedStorage: 20
+      DBSubnetGroupName: !Ref SubnetGroup
+      MultiAZ: false
+
+Outputs:
+  DB:
+    Description: The ECS cluster into which to launch resources
+    Value: !Ref DB
+    Export:
+      Name: !Sub ${AWS::StackName}-DB

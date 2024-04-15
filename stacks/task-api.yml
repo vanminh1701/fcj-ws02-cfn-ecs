@@ -39,6 +39,10 @@ Parameters:
     Type: Number
     Default: 1
     Description: How many copies of the service task to run
+  ScalingRoleArn:
+    Type: String
+    Default: arn:aws:iam::761048055120:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
+    Description: Scaling Role for ECS service
 
 Resources:
   TaskDefinition:
@@ -126,3 +130,26 @@ Resources:
           IpProtocol: -1
   LogGroup:
     Type: AWS::Logs::LogGroup
+
+  ScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: 3
+      MinCapacity: 1
+      ResourceId: !Join ["/", [service, !Ref ClusterName, !GetAtt Service.Name]]
+      RoleARN: !Ref ScalingRoleArn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  TargetTrackingScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: cpu75-target-tracking-scaling-policy
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ScalingTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 75.0
+        ScaleInCooldown: 30
+        ScaleOutCooldown: 30
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization

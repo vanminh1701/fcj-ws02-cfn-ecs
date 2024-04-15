@@ -8,7 +8,7 @@ Parameters:
   VpcStackExportPrefixName:
     Type: String
     Description: VPC stack name prefix to get exported values 
-    Default: ws2
+    Default: ws02-vpc
   PrimaryRegion:
     Type: String
     AllowedValues: ["ap-southeast-1", "ap-northeast-1"]
@@ -20,9 +20,10 @@ Mappings:
       ApiTaskCount: 1
     Secondary: 
       WebTaskCount: 0
-      ApiTaskCount: 1
+      ApiTaskCount: 0
 Conditions:
   IsPrimary: !Equals [!Ref AWS::Region, ap-southeast-1]
+  RDSReplicaCreation: !Equals [!Ref AWS::Region, "ap-northeast-1"]
 
 Resources:
   ecsStack:
@@ -45,27 +46,44 @@ Resources:
       Parameters:
         RepositoryName: ws02
         SecondaryRegion: ap-northeast-1
-  # taskWebStack:
-  #   Type: AWS::CloudFormation::Stack
-  #   DependsOn:
-  #     - ecsStack
-  #     - ecsALBStack
-  #   Properties:
-  #     TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/task-web.yml
-  #     Parameters:
-  #       VpcStackName: !Ref VpcStackExportPrefixName
-  #       ClusterName: !GetAtt ecsStack.Outputs.ClusterName
-  #       CapacityProvider: !GetAtt ecsStack.Outputs.CapacityProvider
-  #       ServiceName: web
-  #       TaskExecutionRoleArn: !GetAtt ecsStack.Outputs.TaskExecutionRoleArn
-  #       TaskRole: !GetAtt ecsStack.Outputs.TaskRole
-  #       ImageUrl: nginx:latest
-  #       ELBTargetGroupArn: !GetAtt ecsALBStack.Outputs.WebTargetGroup1
-  #       DesiredCount:
-  #         !If
-  #           - IsPrimary
-  #           - !FindInMap [Compute, Primary, WebTaskCount]
-  #           - !FindInMap [Compute, Secondary, WebTaskCount]
+  rdsStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: IsPrimary
+    Properties:
+      TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/rds.yml
+      Parameters:
+        DBName: ws02instance
+        VpcStackName: !Ref VpcStackExportPrefixName
+  rdsReadReplicaStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: RDSReplicaCreation
+    Properties:
+      TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/rds-read-replica.yml
+      Parameters:
+        SourceDBInstanceIdentifier: !Sub arn:aws:rds:${PrimaryRegion}:${AWS::AccountId}:db:ws02instance
+        SourceRegion: ap-southeast-1
+        VpcStackName: !Ref VpcStackExportPrefixName
+  taskWebStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - ecsStack
+      - ecsALBStack
+    Properties:
+      TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/task-web.yml
+      Parameters:
+        VpcStackName: !Ref VpcStackExportPrefixName
+        ClusterName: !GetAtt ecsStack.Outputs.ClusterName
+        CapacityProvider: !GetAtt ecsStack.Outputs.CapacityProvider
+        ServiceName: web
+        TaskExecutionRoleArn: !GetAtt ecsStack.Outputs.TaskExecutionRoleArn
+        TaskRole: !GetAtt ecsStack.Outputs.TaskRole
+        ImageUrl: gcr.io/kuar-demo/kuard-amd64:blue
+        ELBTargetGroupArn: !GetAtt ecsALBStack.Outputs.WebTargetGroup1
+        DesiredCount:
+          !If
+            - IsPrimary
+            - !FindInMap [Compute, Primary, WebTaskCount]
+            - !FindInMap [Compute, Secondary, WebTaskCount]
   taskAPIStack:
     Type: AWS::CloudFormation::Stack
     DependsOn:
@@ -79,7 +97,7 @@ Resources:
         ServiceName: api
         TaskExecutionRoleArn: !GetAtt ecsStack.Outputs.TaskExecutionRoleArn
         TaskRole: !GetAtt ecsStack.Outputs.TaskRole
-        ImageUrl: dockerbogo/docker-nginx-hello-world
+        ImageUrl: gcr.io/kuar-demo/kuard-amd64:blue
         ELBTargetGroupArn: !GetAtt ecsALBStack.Outputs.WebTargetGroup2
         DesiredCount:
           !If

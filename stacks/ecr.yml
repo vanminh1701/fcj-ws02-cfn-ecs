@@ -4,27 +4,30 @@ Parameters:
   RepositoryName:
     Type: String
     Description: RepositoryName
+    Default: fake
   SecondaryRegion:
     Type: String
     Description: SecondaryRegion
+    Default: ap-northeast-1
 
 Resources:
   Ws02Repository:
     Type: AWS::ECR::Repository
     Properties:
       ImageTagMutability: IMMUTABLE
-      RepositoryName: !Ref RepositoryName
+      RepositoryName: '{{resolve:ssm:ecr-name:1}}'
+        #RepositoryName: !Ref RepositoryName
       ImageScanningConfiguration:
         ScanOnPush: true
-  ECRReplication:
-    Type: AWS::ECR::ReplicationConfiguration
-    DependsOn: Ws02Repository
-    Properties:
-      ReplicationConfiguration: 
-        Rules:
-          - Destinations:
-              - Region: !Ref SecondaryRegion
-                RegistryId: !Ref AWS::AccountId
-            RepositoryFilters:
-              - Filter: !Ref Ws02Repository
-                FilterType: PREFIX_MATCH
+          #ECRReplication:
+          #  Type: AWS::ECR::ReplicationConfiguration
+          #  DependsOn: Ws02Repository
+          #  Properties:
+          #    ReplicationConfiguration: 
+          #      Rules:
+          #        - Destinations:
+          #            - Region: !Ref SecondaryRegion
+          #              RegistryId: !Ref AWS::AccountId
+          #          RepositoryFilters:
+          #            - Filter: !Ref Ws02Repository
+          #              FilterType: PREFIX_MATCH

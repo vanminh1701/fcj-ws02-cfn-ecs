@@ -19,52 +19,52 @@ Parameters:
     Default: https://tvm-cf-templates.s3.ap-southeast-1.amazonaws.com/main.yml
 
 Resources:
-  # AdministrationRole:
-  #   Type: AWS::IAM::Role
-  #   # DeletionPolicy: Retain
-  #   Properties:
-  #     RoleName: !Ref AdministrationRoleName
-  #     AssumeRolePolicyDocument:
-  #       Version: 2012-10-17
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service: cloudformation.amazonaws.com
-  #           Action:
-  #             - sts:AssumeRole
-  #     Path: /
-  #     Policies:
-  #       - PolicyName: AssumeRole-AWSCloudFormationStackSetExecutionRole
-  #         PolicyDocument:
-  #           Version: 2012-10-17
-  #           Statement:
-  #             - Effect: Allow
-  #               Action:
-  #                 - sts:AssumeRole
-  #               Resource:
-  #                 - !Sub 'arn:*:iam::*:role/${ExecutionRoleName}'
+  AdministrationRole:
+    Type: AWS::IAM::Role
+    # DeletionPolicy: Retain
+    Properties:
+      RoleName: !Ref AdministrationRoleName
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: AssumeRole-AWSCloudFormationStackSetExecutionRole
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource:
+                  - !Sub 'arn:*:iam::*:role/${ExecutionRoleName}'
 
-  # AWSCloudFormationStackSetExecutionRole:
-  #   Type: AWS::IAM::Role
-  #   # DeletionPolicy: Retain
-  #   Properties:
-  #     RoleName: AWSCloudFormationStackSetExecutionRole
-  #     AssumeRolePolicyDocument:
-  #       Version: 2012-10-17
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service: cloudformation.amazonaws.com
-  #             AWS: !GetAtt AdministrationRole.Arn
-  #           Action:
-  #             - sts:AssumeRole
-  #     Path: /
-  #     ManagedPolicyArns: 
-  #     - arn:aws:iam::aws:policy/AdministratorAccess
-  #     # - arn:aws:iam::aws:policy/AmazonECS_FullAccess
-  #     # - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
-  #     # - arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess
-  #     # - arn:aws:iam::aws:policy/AmazonS3FullAccess
+  AWSCloudFormationStackSetExecutionRole:
+    Type: AWS::IAM::Role
+    # DeletionPolicy: Retain
+    Properties:
+      RoleName: AWSCloudFormationStackSetExecutionRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+              AWS: !GetAtt AdministrationRole.Arn
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns: 
+      - arn:aws:iam::aws:policy/AdministratorAccess
+      # - arn:aws:iam::aws:policy/AmazonECS_FullAccess
+      # - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+      # - arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess
+      # - arn:aws:iam::aws:policy/AmazonS3FullAccess
 
   VPCStackSet:
     Type: 'AWS::CloudFormation::StackSet'
@@ -81,7 +81,7 @@ Resources:
       TemplateURL: !Ref VPCTemplate
       Parameters:
         - ParameterKey: EnvironmentName
-          ParameterValue: ws02
+          ParameterValue: ws02-vpc
       OperationPreferences:
         FailureToleranceCount: 0
         MaxConcurrentCount: 1
@@ -93,7 +93,7 @@ Resources:
           Regions:
           - ap-southeast-1 # Singapore
           - ap-northeast-1 # Tokyo
-
+        
   ECSStackSet:
     Type: 'AWS::CloudFormation::StackSet'
     # DeletionPolicy: Retain
@@ -110,15 +110,15 @@ Resources:
         Active: true
       Tags:
         - Key: test
-          Value: true
+          Value: false
       TemplateURL: !Ref ECSTemplate
-      Parameters:
-        - ParameterKey: VpcStackExportPrefixName
-          ParameterValue: ws02
       OperationPreferences:
         FailureToleranceCount: 0
         MaxConcurrentCount: 1
-        RegionConcurrencyType: PARALLEL
+        RegionConcurrencyType: SEQUENTIAL
+        RegionOrder:
+          - ap-southeast-1
+          - ap-northeast-1
       StackInstancesGroup:
       # Primary region
         - DeploymentTargets:
@@ -135,9 +135,3 @@ Resources:
           ParameterOverrides:
             - ParameterKey: BucketName
               ParameterValue: tvm-cf-templates-tokyo
-
-# TODO: Design CloudFormation Condition de deploy 2 moi truong
-# Mo phong DR:
-# - script update compute
-# - chuyen traffic bang route 53
-# - Thong bao SNS ve email / slack
