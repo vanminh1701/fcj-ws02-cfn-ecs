@@ -1,0 +1,30 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECR repository
+Parameters:
+  RepositoryName:
+    Type: String
+    Description: RepositoryName
+  SecondaryRegion:
+    Type: String
+    Description: SecondaryRegion
+
+Resources:
+  Ws02Repository:
+    Type: AWS::ECR::Repository
+    Properties:
+      ImageTagMutability: IMMUTABLE
+      RepositoryName: !Ref RepositoryName
+      ImageScanningConfiguration:
+        ScanOnPush: true
+  ECRReplication:
+    Type: AWS::ECR::ReplicationConfiguration
+    DependsOn: Ws02Repository
+    Properties:
+      ReplicationConfiguration: 
+        Rules:
+          - Destinations:
+              - Region: !Ref SecondaryRegion
+                RegistryId: !Ref AWS::AccountId
+            RepositoryFilters:
+              - Filter: !Ref Ws02Repository
+                FilterType: PREFIX_MATCH

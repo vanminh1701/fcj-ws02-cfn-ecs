@@ -86,6 +86,11 @@ Resources:
         - CidrIp: 0.0.0.0/0
           IpProtocol: -1
 Outputs:
+  ALBDNS:
+    Value: !GetAtt LoadBalancer.DNSName
+    Description: Application Load Balancer DNS Name
+    Export: 
+      Name: !Sub ${AWS::StackName}-DNSName
   LoadBalancer:
     Value: !Ref LoadBalancer
     Description: LoadBalancer

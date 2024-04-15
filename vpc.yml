@@ -162,27 +162,27 @@ Resources:
     Properties:
       RouteTableId: !Ref PrivateRouteTable2
       SubnetId: !Ref PrivateSubnet2
-  CWEndpoint:
-    Type: AWS::EC2::VPCEndpoint
-    Properties:
-      VpcId: !Ref VPC
-      ServiceName: !Sub com.amazonaws.${AWS::Region}.logs
-      SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-      VpcEndpointType: Interface
-      PrivateDnsEnabled: true
+  # CWEndpoint:
+  #   Type: AWS::EC2::VPCEndpoint
+  #   Properties:
+  #     VpcId: !Ref VPC
+  #     ServiceName: !Sub com.amazonaws.${AWS::Region}.logs
+  #     SubnetIds:
+  #       - !Ref PrivateSubnet1
+  #       - !Ref PrivateSubnet2
+  #     VpcEndpointType: Interface
+  #     PrivateDnsEnabled: true
 Outputs:
   VPC:
     Description: A reference to the created VPC
     Value: !Ref VPC
     Export:
-      Name: !Sub ${AWS::StackName}-VpcId
+      Name: !Sub ${EnvironmentName}-VpcId
   CIDR:
     Description: A reference to the created VPC
     Value: !Ref VpcCIDR
     Export:
-      Name: !Sub ${AWS::StackName}-CIDR
+      Name: !Sub ${EnvironmentName}-CIDR
   PublicSubnets:
     Description: A list of the public subnets
     Value: !Join
@@ -190,7 +190,7 @@ Outputs:
       - - !Ref PublicSubnet1
         - !Ref PublicSubnet2
     Export:
-      Name: !Sub ${AWS::StackName}-PublicSubnets
+      Name: !Sub ${EnvironmentName}-PublicSubnets
   PrivateSubnets:
     Description: A list of the private subnets
     Value: !Join
@@ -198,24 +198,24 @@ Outputs:
       - - !Ref PrivateSubnet1
         - !Ref PrivateSubnet2
     Export:
-      Name: !Sub ${AWS::StackName}-PrivateSubnets
+      Name: !Sub ${EnvironmentName}-PrivateSubnets
   PublicSubnet1:
     Description: A reference to the public subnet in the 1st Availability Zone
     Value: !Ref PublicSubnet1
     Export:
-      Name: !Sub ${AWS::StackName}-PublicSubnet1
+      Name: !Sub ${EnvironmentName}-PublicSubnet1
   PublicSubnet2:
     Description: A reference to the public subnet in the 2nd Availability Zone
     Value: !Ref PublicSubnet2
     Export:
-      Name: !Sub ${AWS::StackName}-PublicSubnet2
+      Name: !Sub ${EnvironmentName}-PublicSubnet2
   PrivateSubnet1:
     Description: A reference to the private subnet in the 1st Availability Zone
     Value: !Ref PrivateSubnet1
     Export:
-      Name: !Sub ${AWS::StackName}-PrivateSubnet1
+      Name: !Sub ${EnvironmentName}-PrivateSubnet1
   PrivateSubnet2:
     Description: A reference to the private subnet in the 2nd Availability Zone
     Value: !Ref PrivateSubnet2
     Export:
-      Name: !Sub ${AWS::StackName}-PrivateSubnet2
+      Name: !Sub ${EnvironmentName}-PrivateSubnet2

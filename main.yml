@@ -4,44 +4,68 @@ Parameters:
   BucketName:
     Type: String
     Description: S3 address of stack resources and files
-    Default: ws2-templates
-  VpcStackName:
+    Default: tvm-cf-templates
+  VpcStackExportPrefixName:
     Type: String
-    Description: VPC stack name
-    Default: ws2-vpc
-  GitHubUrl:
+    Description: VPC stack name prefix to get exported values 
+    Default: ws2
+  PrimaryRegion:
     Type: String
-    Description: CloudFormation custom templates Github repo 
-    Default: https://github.com/vanminh1701/fcj-ws02-cfn-ecs/blob/master/stacks/ecs.yml
+    AllowedValues: ["ap-southeast-1", "ap-northeast-1"]
+    Default: ap-southeast-1 # Singapore
+Mappings: 
+  Compute: 
+    Primary: 
+      WebTaskCount: 1
+      ApiTaskCount: 1
+    Secondary: 
+      WebTaskCount: 0
+      ApiTaskCount: 1
+Conditions:
+  IsPrimary: !Equals [!Ref AWS::Region, ap-southeast-1]
+
 Resources:
   ecsStack:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/ecs.yml
       Parameters:
-        VpcStackName: !Ref VpcStackName
+        VpcStackName: !Ref VpcStackExportPrefixName
   ecsALBStack:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/alb.yml
       Parameters:
-        VpcStackName: !Ref VpcStackName
-  taskWebStack:
+        VpcStackName: !Ref VpcStackExportPrefixName
+  ecrStack:
     Type: AWS::CloudFormation::Stack
-    DependsOn:
-      - ecsStack
-      - ecsALBStack
+    Condition: IsPrimary
     Properties:
-      TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/task-web.yml
+      TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/ecr.yml
       Parameters:
-        VpcStackName: !Ref VpcStackName
-        ClusterName: !GetAtt ecsStack.Outputs.ClusterName
-        CapacityProvider: !GetAtt ecsStack.Outputs.CapacityProvider
-        ServiceName: web
-        TaskExecutionRoleArn: !GetAtt ecsStack.Outputs.TaskExecutionRoleArn
-        TaskRole: !GetAtt ecsStack.Outputs.TaskRole
-        ImageUrl: nginx:latest
-        ELBTargetGroupArn: !GetAtt ecsALBStack.Outputs.WebTargetGroup1
+        RepositoryName: ws02
+        SecondaryRegion: ap-northeast-1
+  # taskWebStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   DependsOn:
+  #     - ecsStack
+  #     - ecsALBStack
+  #   Properties:
+  #     TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/task-web.yml
+  #     Parameters:
+  #       VpcStackName: !Ref VpcStackExportPrefixName
+  #       ClusterName: !GetAtt ecsStack.Outputs.ClusterName
+  #       CapacityProvider: !GetAtt ecsStack.Outputs.CapacityProvider
+  #       ServiceName: web
+  #       TaskExecutionRoleArn: !GetAtt ecsStack.Outputs.TaskExecutionRoleArn
+  #       TaskRole: !GetAtt ecsStack.Outputs.TaskRole
+  #       ImageUrl: nginx:latest
+  #       ELBTargetGroupArn: !GetAtt ecsALBStack.Outputs.WebTargetGroup1
+  #       DesiredCount:
+  #         !If
+  #           - IsPrimary
+  #           - !FindInMap [Compute, Primary, WebTaskCount]
+  #           - !FindInMap [Compute, Secondary, WebTaskCount]
   taskAPIStack:
     Type: AWS::CloudFormation::Stack
     DependsOn:
@@ -50,14 +74,15 @@ Resources:
     Properties:
       TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/task-api.yml
       Parameters:
-        VpcStackName: !Ref VpcStackName
+        VpcStackName: !Ref VpcStackExportPrefixName
         ClusterName: !GetAtt ecsStack.Outputs.ClusterName
         ServiceName: api
         TaskExecutionRoleArn: !GetAtt ecsStack.Outputs.TaskExecutionRoleArn
         TaskRole: !GetAtt ecsStack.Outputs.TaskRole
         ImageUrl: dockerbogo/docker-nginx-hello-world
         ELBTargetGroupArn: !GetAtt ecsALBStack.Outputs.WebTargetGroup2
-
-# TODO:
-# tạo private link cho cloudwatch
-# tạo thêm change set để cho cloudformation
+        DesiredCount:
+          !If
+            - IsPrimary
+            - !FindInMap [Compute, Primary, ApiTaskCount]
+            - !FindInMap [Compute, Secondary, ApiTaskCount]

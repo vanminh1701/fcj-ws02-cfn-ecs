@@ -1,0 +1,143 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation for deploying Stack set to Singapore and Tokyo
+Parameters:
+  AdministrationRoleName:
+    Type: String
+    Default: AWSCloudFormationStackSetAdministrationRole
+    Description: "The name of the administration role. Defaults to 'AWSCloudFormationStackSetAdministrationRole'."
+  ExecutionRoleName:
+    Type: String
+    Default: AWSCloudFormationStackSetExecutionRole
+    Description: "The name of the execution role that can assume this role. Defaults to 'AWSCloudFormationStackSetExecutionRole'."
+  VPCTemplate:
+    Type: String
+    Description: S3 address of stack resources and files
+    Default: https://tvm-cf-templates.s3.ap-southeast-1.amazonaws.com/vpc.yml
+  ECSTemplate:
+    Type: String
+    Description: S3 address of stack resources and files
+    Default: https://tvm-cf-templates.s3.ap-southeast-1.amazonaws.com/main.yml
+
+Resources:
+  # AdministrationRole:
+  #   Type: AWS::IAM::Role
+  #   # DeletionPolicy: Retain
+  #   Properties:
+  #     RoleName: !Ref AdministrationRoleName
+  #     AssumeRolePolicyDocument:
+  #       Version: 2012-10-17
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: cloudformation.amazonaws.com
+  #           Action:
+  #             - sts:AssumeRole
+  #     Path: /
+  #     Policies:
+  #       - PolicyName: AssumeRole-AWSCloudFormationStackSetExecutionRole
+  #         PolicyDocument:
+  #           Version: 2012-10-17
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - sts:AssumeRole
+  #               Resource:
+  #                 - !Sub 'arn:*:iam::*:role/${ExecutionRoleName}'
+
+  # AWSCloudFormationStackSetExecutionRole:
+  #   Type: AWS::IAM::Role
+  #   # DeletionPolicy: Retain
+  #   Properties:
+  #     RoleName: AWSCloudFormationStackSetExecutionRole
+  #     AssumeRolePolicyDocument:
+  #       Version: 2012-10-17
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: cloudformation.amazonaws.com
+  #             AWS: !GetAtt AdministrationRole.Arn
+  #           Action:
+  #             - sts:AssumeRole
+  #     Path: /
+  #     ManagedPolicyArns: 
+  #     - arn:aws:iam::aws:policy/AdministratorAccess
+  #     # - arn:aws:iam::aws:policy/AmazonECS_FullAccess
+  #     # - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+  #     # - arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess
+  #     # - arn:aws:iam::aws:policy/AmazonS3FullAccess
+
+  VPCStackSet:
+    Type: 'AWS::CloudFormation::StackSet'
+    Properties:
+      StackSetName: ws02-vpc
+      Description: VPC stack set on Singapore and Tokyo
+      PermissionModel: SELF_MANAGED
+      ExecutionRoleName: AWSCloudFormationStackSetExecutionRole
+      ManagedExecution:
+        Active: true
+      Tags:
+        - Key: test
+          Value: true
+      TemplateURL: !Ref VPCTemplate
+      Parameters:
+        - ParameterKey: EnvironmentName
+          ParameterValue: ws02
+      OperationPreferences:
+        FailureToleranceCount: 0
+        MaxConcurrentCount: 1
+        RegionConcurrencyType: PARALLEL
+      StackInstancesGroup:
+        - DeploymentTargets:
+            Accounts:
+              - !Ref AWS::AccountId
+          Regions:
+          - ap-southeast-1 # Singapore
+          - ap-northeast-1 # Tokyo
+
+  ECSStackSet:
+    Type: 'AWS::CloudFormation::StackSet'
+    # DeletionPolicy: Retain
+    DependsOn: VPCStackSet
+    Properties:
+      StackSetName: ws02-ecs
+      Description: ECS stack set on Singapore and Tokyo
+      PermissionModel: SELF_MANAGED
+      ExecutionRoleName: AWSCloudFormationStackSetExecutionRole
+      Capabilities:
+        - CAPABILITY_IAM
+        - CAPABILITY_AUTO_EXPAND
+      ManagedExecution:
+        Active: true
+      Tags:
+        - Key: test
+          Value: true
+      TemplateURL: !Ref ECSTemplate
+      Parameters:
+        - ParameterKey: VpcStackExportPrefixName
+          ParameterValue: ws02
+      OperationPreferences:
+        FailureToleranceCount: 0
+        MaxConcurrentCount: 1
+        RegionConcurrencyType: PARALLEL
+      StackInstancesGroup:
+      # Primary region
+        - DeploymentTargets:
+            Accounts:
+              - !Ref AWS::AccountId
+          Regions:
+            - ap-southeast-1 # Singapore
+      # Disaster region
+        - DeploymentTargets:
+            Accounts:
+              - !Ref AWS::AccountId
+          Regions:
+            - ap-northeast-1 # Tokyo
+          ParameterOverrides:
+            - ParameterKey: BucketName
+              ParameterValue: tvm-cf-templates-tokyo
+
+# TODO: Design CloudFormation Condition de deploy 2 moi truong
+# Mo phong DR:
+# - script update compute
+# - chuyen traffic bang route 53
+# - Thong bao SNS ve email / slack
