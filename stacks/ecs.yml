@@ -210,6 +210,9 @@ Outputs:
     Value: !Ref Cluster
     Export:
       Name: !Sub ${AWS::StackName}-ClusterName
+  ClusterARN:
+    Description: The ECS cluster into which to launch resources
+    Value: !GetAtt Cluster.Arn
   TaskRole:
     Description: The role used to start up a task
     Value: !Ref TaskRole

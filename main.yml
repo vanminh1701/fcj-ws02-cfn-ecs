@@ -23,7 +23,7 @@ Mappings:
       ApiTaskCount: 0
 Conditions:
   IsPrimary: !Equals [!Ref AWS::Region, ap-southeast-1]
-  RDSReplicaCreation: !Equals [!Ref AWS::Region, "ap-northeast-1"]
+  IsSecondary: !Equals [!Ref AWS::Region, ap-northeast-1]
 
 Resources:
   ecsStack:
@@ -38,52 +38,46 @@ Resources:
       TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/alb.yml
       Parameters:
         VpcStackName: !Ref VpcStackExportPrefixName
-  ecrStack:
+  eventBridgeStack:
     Type: AWS::CloudFormation::Stack
-    Condition: IsPrimary
     Properties:
-      TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/ecr.yml
+      TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/event-bridge.yml
       Parameters:
-        RepositoryName: ws02
-        SecondaryRegion: ap-northeast-1
-  rdsStack:
+        ClusterARN: ecsStack.Outputs.ClusterARN
+  metricFilterStack:
     Type: AWS::CloudFormation::Stack
-    Condition: IsPrimary
     Properties:
-      TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/rds.yml
-      Parameters:
-        DBName: ws02instance
-        VpcStackName: !Ref VpcStackExportPrefixName
-  rdsReadReplicaStack:
-    Type: AWS::CloudFormation::Stack
-    Condition: RDSReplicaCreation
-    Properties:
-      TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/rds-read-replica.yml
-      Parameters:
-        SourceDBInstanceIdentifier: !Sub arn:aws:rds:${PrimaryRegion}:${AWS::AccountId}:db:ws02instance
-        SourceRegion: ap-southeast-1
-        VpcStackName: !Ref VpcStackExportPrefixName
-  taskWebStack:
-    Type: AWS::CloudFormation::Stack
-    DependsOn:
-      - ecsStack
-      - ecsALBStack
-    Properties:
-      TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/task-web.yml
-      Parameters:
-        VpcStackName: !Ref VpcStackExportPrefixName
-        ClusterName: !GetAtt ecsStack.Outputs.ClusterName
-        CapacityProvider: !GetAtt ecsStack.Outputs.CapacityProvider
-        ServiceName: web
-        TaskExecutionRoleArn: !GetAtt ecsStack.Outputs.TaskExecutionRoleArn
-        TaskRole: !GetAtt ecsStack.Outputs.TaskRole
-        ImageUrl: gcr.io/kuar-demo/kuard-amd64:blue
-        ELBTargetGroupArn: !GetAtt ecsALBStack.Outputs.WebTargetGroup1
-        DesiredCount:
-          !If
-            - IsPrimary
-            - !FindInMap [Compute, Primary, WebTaskCount]
-            - !FindInMap [Compute, Secondary, WebTaskCount]
+      TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/metric-filter.yml
+        
+  # ecrStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   Condition: IsPrimary
+  #   Properties:
+  #     TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/ecr.yml
+  #     Parameters:
+  #       RepositoryName: ws02
+  #       SecondaryRegion: ap-northeast-1
+  # taskWebStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   DependsOn:
+  #     - ecsStack
+  #     - ecsALBStack
+  #   Properties:
+  #     TemplateURL: !Sub https://${BucketName}.s3.${AWS::Region}.amazonaws.com/stacks/task-web.yml
+  #     Parameters:
+  #       VpcStackName: !Ref VpcStackExportPrefixName
+  #       ClusterName: !GetAtt ecsStack.Outputs.ClusterName
+  #       CapacityProvider: !GetAtt ecsStack.Outputs.CapacityProvider
+  #       ServiceName: web
+  #       TaskExecutionRoleArn: !GetAtt ecsStack.Outputs.TaskExecutionRoleArn
+  #       TaskRole: !GetAtt ecsStack.Outputs.TaskRole
+  #       ImageUrl: gcr.io/kuar-demo/kuard-amd64:blue
+  #       ELBTargetGroupArn: !GetAtt ecsALBStack.Outputs.WebTargetGroup1
+  #       DesiredCount:
+  #         !If
+  #           - IsPrimary
+  #           - !FindInMap [Compute, Primary, WebTaskCount]
+  #           - !FindInMap [Compute, Secondary, WebTaskCount]
   taskAPIStack:
     Type: AWS::CloudFormation::Stack
     DependsOn:
@@ -98,7 +92,8 @@ Resources:
         TaskExecutionRoleArn: !GetAtt ecsStack.Outputs.TaskExecutionRoleArn
         TaskRole: !GetAtt ecsStack.Outputs.TaskRole
         ImageUrl: gcr.io/kuar-demo/kuard-amd64:blue
-        ELBTargetGroupArn: !GetAtt ecsALBStack.Outputs.WebTargetGroup2
+        ContainerPort: 8080
+        ELBTargetGroupArn: !GetAtt ecsALBStack.Outputs.WebTargetGroup1 # Group 1: web, 2: api
         DesiredCount:
           !If
             - IsPrimary

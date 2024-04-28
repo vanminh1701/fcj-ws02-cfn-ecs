@@ -1,0 +1,44 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::LanguageExtensions'
+Description: ECR repository
+Parameters:
+  SNSTopic:
+    Type: String
+    Default: arn:aws:sns:ap-southeast-1:761048055120:NotiSlack
+Mappings:
+  LogGroupNames:
+    Task:
+      API: filter
+      Web: for-metric-filter
+
+Resources:
+  'Fn::ForEach::MetricFilters':
+    - Identifier
+    - [API, Web]
+    - 'MetricFilter${Identifier}':
+        Type: AWS::Logs::MetricFilter
+        Properties:
+          LogGroupName: !FindInMap [LogGroupNames, Task, !Ref Identifier]
+          FilterPattern: '%ERROR%'
+          MetricTransformations:
+            - MetricValue: 1
+              MetricNamespace: ws02
+              MetricName: !Join ["-" ,["ws02", !FindInMap [LogGroupNames, Task, !Ref Identifier]]]
+              Unit: Count
+              DefaultValue: 0
+      'Alarm${Identifier}':
+        Type: AWS::CloudWatch::Alarm
+        DependsOn: !Join ["", [MetricFilter, !Ref Identifier]]
+        Properties:
+          AlarmName: !Join ["-" ,["ws02", !FindInMap [LogGroupNames, Task, !Ref Identifier]]]
+          AlarmDescription: Alarm for metric filter
+          AlarmActions:
+            - !Ref SNSTopic
+          MetricName: !Join ["-" ,["ws02", !FindInMap [LogGroupNames, Task, !Ref Identifier]]]
+          Namespace: ws02
+          Statistic: Sum
+          Period: 10
+          EvaluationPeriods: 2
+          DatapointsToAlarm: 2
+          Threshold: 10
+          ComparisonOperator: GreaterThanOrEqualToThreshold

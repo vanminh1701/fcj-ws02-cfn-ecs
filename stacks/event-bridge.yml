@@ -1,0 +1,35 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECR repository
+Parameters:
+  ClusterARN:
+    Type: String
+    Description: ClusterARN
+    Default: arn:aws:ecs:ap-southeast-1:761048055120:cluster/dev
+  EventBusName:
+    Type: String
+    Default: my-bus
+
+Resources:
+  ECSClusterStateChangeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: EventBridge rule for ECS cluster state changes
+      EventBusName:  !Ref EventBusName 
+      EventPattern: 
+        source: 
+          - aws.ecs
+        detail-type: 
+          - ECS Task State Change
+          - ECS Container Instance State Change
+          - ECS Deployment State Change
+        detail: 
+          clusterArn: 
+            - !Ref ClusterARN
+      Name: ws02-ecs-cluster-state-change
+      State: ENABLED
+      Targets: 
+        - Arn: arn:aws:sns:ap-southeast-1:761048055120:NotiSlack
+          Id: NotiSlack
+        - Id: CWLog
+          Arn: >-
+            arn:aws:logs:ap-southeast-1:761048055120:log-group:/aws/events/ecs-ws02

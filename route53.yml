@@ -1,0 +1,17 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECR repository
+Parameters:
+  DNSName:
+    Type: String
+    Description: RepositoryName
+  
+Resources:
+  Test:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: tvminh.co.
+      Name: ws2.tvminh.co.
+      Type: A
+      AliasTarget:
+        HostedZoneId: Z0464339362EELNDFUGDZ #must hardcode
+        DNSName: !Ref DNSName

@@ -89,6 +89,7 @@ Resources:
         - Base: 0
           CapacityProvider: !Ref CapacityProvider
           Weight: 1
+
       NetworkConfiguration:
         AwsvpcConfiguration:
           SecurityGroups:

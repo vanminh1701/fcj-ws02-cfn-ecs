@@ -48,30 +48,30 @@ Resources:
   WebTargetGroup1:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      HealthCheckIntervalSeconds: 6
-      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 5
+      HealthCheckPath: /healthy
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 3
       TargetType: ip
       Port: 80
       Protocol: HTTP
-      UnhealthyThresholdCount: 10
       VpcId: 
         Fn::ImportValue:
           Fn::Sub: ${VpcStackName}-VpcId
   WebTargetGroup2:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      HealthCheckIntervalSeconds: 6
-      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 5
+      HealthCheckPath: /healthy
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 3
       TargetType: ip
       Port: 80
       Protocol: HTTP
-      UnhealthyThresholdCount: 10
       VpcId: 
         Fn::ImportValue:
           Fn::Sub: ${VpcStackName}-VpcId

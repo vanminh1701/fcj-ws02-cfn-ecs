@@ -9,76 +9,24 @@ Parameters:
     Type: String
     Default: AWSCloudFormationStackSetExecutionRole
     Description: "The name of the execution role that can assume this role. Defaults to 'AWSCloudFormationStackSetExecutionRole'."
-  VPCTemplate:
+  PrimaryRegion:
     Type: String
-    Description: S3 address of stack resources and files
-    Default: https://tvm-cf-templates.s3.ap-southeast-1.amazonaws.com/vpc.yml
-  ECSTemplate:
-    Type: String
-    Description: S3 address of stack resources and files
-    Default: https://tvm-cf-templates.s3.ap-southeast-1.amazonaws.com/main.yml
-
+    Default: ap-southeast-1 # Singapore
+    
 Resources:
-  AdministrationRole:
-    Type: AWS::IAM::Role
-    # DeletionPolicy: Retain
-    Properties:
-      RoleName: !Ref AdministrationRoleName
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: cloudformation.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Path: /
-      Policies:
-        - PolicyName: AssumeRole-AWSCloudFormationStackSetExecutionRole
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - sts:AssumeRole
-                Resource:
-                  - !Sub 'arn:*:iam::*:role/${ExecutionRoleName}'
-
-  AWSCloudFormationStackSetExecutionRole:
-    Type: AWS::IAM::Role
-    # DeletionPolicy: Retain
-    Properties:
-      RoleName: AWSCloudFormationStackSetExecutionRole
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: cloudformation.amazonaws.com
-              AWS: !GetAtt AdministrationRole.Arn
-            Action:
-              - sts:AssumeRole
-      Path: /
-      ManagedPolicyArns: 
-      - arn:aws:iam::aws:policy/AdministratorAccess
-      # - arn:aws:iam::aws:policy/AmazonECS_FullAccess
-      # - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
-      # - arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess
-      # - arn:aws:iam::aws:policy/AmazonS3FullAccess
-
   VPCStackSet:
     Type: 'AWS::CloudFormation::StackSet'
     Properties:
       StackSetName: ws02-vpc
       Description: VPC stack set on Singapore and Tokyo
       PermissionModel: SELF_MANAGED
-      ExecutionRoleName: AWSCloudFormationStackSetExecutionRole
+      ExecutionRoleName: !Ref ExecutionRoleName
       ManagedExecution:
         Active: true
       Tags:
         - Key: test
           Value: true
-      TemplateURL: !Ref VPCTemplate
+      TemplateURL: https://tvm-cf-templates.s3.ap-southeast-1.amazonaws.com/vpc.yml
       Parameters:
         - ParameterKey: EnvironmentName
           ParameterValue: ws02-vpc
@@ -92,17 +40,16 @@ Resources:
               - !Ref AWS::AccountId
           Regions:
           - ap-southeast-1 # Singapore
-          - ap-northeast-1 # Tokyo
-        
+          # - ap-northeast-1 # Tokyo
+            
   ECSStackSet:
     Type: 'AWS::CloudFormation::StackSet'
-    # DeletionPolicy: Retain
     DependsOn: VPCStackSet
     Properties:
       StackSetName: ws02-ecs
       Description: ECS stack set on Singapore and Tokyo
       PermissionModel: SELF_MANAGED
-      ExecutionRoleName: AWSCloudFormationStackSetExecutionRole
+      ExecutionRoleName: !Ref ExecutionRoleName
       Capabilities:
         - CAPABILITY_IAM
         - CAPABILITY_AUTO_EXPAND
@@ -110,28 +57,56 @@ Resources:
         Active: true
       Tags:
         - Key: test
-          Value: false
-      TemplateURL: !Ref ECSTemplate
+          Value: true
+      TemplateURL: https://tvm-cf-templates.s3.ap-southeast-1.amazonaws.com/main.yml
       OperationPreferences:
         FailureToleranceCount: 0
         MaxConcurrentCount: 1
-        RegionConcurrencyType: SEQUENTIAL
-        RegionOrder:
-          - ap-southeast-1
-          - ap-northeast-1
+        RegionConcurrencyType: PARALLEL
       StackInstancesGroup:
-      # Primary region
         - DeploymentTargets:
             Accounts:
               - !Ref AWS::AccountId
           Regions:
             - ap-southeast-1 # Singapore
-      # Disaster region
-        - DeploymentTargets:
-            Accounts:
-              - !Ref AWS::AccountId
-          Regions:
-            - ap-northeast-1 # Tokyo
-          ParameterOverrides:
-            - ParameterKey: BucketName
-              ParameterValue: tvm-cf-templates-tokyo
+            # - ap-northeast-1 # Tokyo
+
+  # DataBaseStackSet:
+  #   Type: 'AWS::CloudFormation::StackSet'
+  #   # DeletionPolicy: Retain
+  #   DependsOn: VPCStackSet
+  #   Properties:
+  #     StackSetName: ws02-database
+  #     Description: Database
+  #     PermissionModel: SELF_MANAGED
+  #     ExecutionRoleName: !Ref ExecutionRoleName
+  #     # Capabilities:
+  #     #   - CAPABILITY_IAM
+  #     #   - CAPABILITY_AUTO_EXPAND
+  #     ManagedExecution:
+  #       Active: true
+  #     Tags:
+  #       - Key: test
+  #         Value: true
+  #     TemplateURL: https://tvm-cf-templates.s3.ap-southeast-1.amazonaws.com/database.yml
+  #     Parameters:
+  #       - ParameterKey: DBName
+  #         ParameterValue: ws02instance
+  #       - ParameterKey: VpcStackName
+  #         ParameterValue: ws02-vpc
+  #       - ParameterKey: SourceDBInstanceIdentifier
+  #         ParameterValue: !Sub arn:aws:rds:${PrimaryRegion}:${AWS::AccountId}:db:ws02instance
+  #     OperationPreferences:
+  #       FailureToleranceCount: 0
+  #       MaxConcurrentCount: 1
+  #       RegionConcurrencyType: SEQUENTIAL
+  #       RegionOrder:
+  #         - ap-southeast-1
+  #         - ap-northeast-1
+  #     StackInstancesGroup:
+  #       - DeploymentTargets:
+  #           Accounts:
+  #             - !Ref AWS::AccountId
+  #         Regions:
+  #           - ap-southeast-1 # Singapore
+  #           - ap-northeast-1 # Tokyo
